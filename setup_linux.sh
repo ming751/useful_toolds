@@ -81,6 +81,7 @@ if ! command -v docker &> /dev/null; then
 else
     echo -e "${BLUE}  - Docker 已安装，跳过。${NC}"
 fi
+sudo apt-get install docker-compose-plugin
 
 # ==========================================
 # Part 4: CUDA 配置 (用户指定)
