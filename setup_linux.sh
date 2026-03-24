@@ -49,14 +49,21 @@ apt-get install -y zsh
 OMZ_DIR="$USER_HOME/.oh-my-zsh"
 
 if [ ! -d "$OMZ_DIR" ]; then
-    sudo -u $REAL_USER sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+    # 注入 HOME 环境变量，防止 sudo 运行时 $HOME 仍是 /root 导致 oh-my-zsh 无法在用户侧生成 .zshrc
+    sudo -H -u $REAL_USER env HOME="$USER_HOME" sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
     chsh -s $(command -v zsh || echo "/bin/zsh") $REAL_USER
     
     # 安装插件
     ZSH_CUSTOM="$OMZ_DIR/custom"
-    sudo -u $REAL_USER git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM}/plugins/zsh-autosuggestions
-    sudo -u $REAL_USER git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM}/plugins/zsh-syntax-highlighting
-    sudo -u $REAL_USER sed -i 's/plugins=(git)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' "$USER_HOME/.zshrc"
+    sudo -H -u $REAL_USER git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM}/plugins/zsh-autosuggestions
+    sudo -H -u $REAL_USER git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM}/plugins/zsh-syntax-highlighting
+    
+    # 增加兜底检查：如果由于网络或其他原因没有生成 .zshrc，从模板复制一份
+    if [ ! -f "$USER_HOME/.zshrc" ]; then
+        sudo -H -u $REAL_USER cp "$OMZ_DIR/templates/zshrc.zsh-template" "$USER_HOME/.zshrc"
+    fi
+
+    sudo -H -u $REAL_USER sed -i 's/plugins=(git)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' "$USER_HOME/.zshrc"
 fi
 
 # ==========================================
@@ -64,10 +71,9 @@ fi
 # ==========================================
 echo -e "${GREEN}[STEP 3/7] 安装 Docker...${NC}"
 if ! command -v docker &> /dev/null; then
-    # 使用官方脚本一键安装
-    curl -fsSL https://get.docker.com -o get-docker.sh
-    sh get-docker.sh
-    rm get-docker.sh
+    # 国内网络直连 get.docker.com 极易被墙(Connection reset by peer)
+    # 改用 Ubuntu 官方系统源安装稳定版 Docker (在国内镜像源如清华/阿里加持下速度极快)
+    apt-get install -y docker.io
     
     # 将用户加入 docker 组 (免 sudo 使用 docker)
     usermod -aG docker $REAL_USER
