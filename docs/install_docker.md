@@ -2,6 +2,12 @@
 
 本文记录如何在 Ubuntu 上从 0 开始安装 Docker Engine、Docker Compose v2，并完成基础验证。
 
+如果你想直接一键安装，可以优先运行：
+
+```bash
+sudo ./scripts/docker/install_docker.sh
+```
+
 > 适用场景：
 > - Ubuntu 本机
 > - WSL Ubuntu
@@ -110,6 +116,28 @@ newgrp docker
 ```
 
 > 注意：`docker` 组等价于较高主机权限，不要随便给不可信用户加入该组。
+
+---
+
+## 7.1 推荐：配置 Docker daemon 镜像加速
+
+在国内网络环境下，建议安装完成后立刻配置镜像加速，否则 `docker pull` 往往会很慢，甚至失败。
+
+如果你想看详细说明和完整复制版命令，请直接查看：
+
+- [`docs/cheatsheets/docker.md`](cheatsheets/docker.md)
+
+如果你想一键完成配置，可以直接运行：
+
+```bash
+sudo ./scripts/docker/configure_daemon.sh
+```
+
+核心配置文件位置：
+
+```bash
+/etc/docker/daemon.json
+```
 
 ---
 
