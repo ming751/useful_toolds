@@ -1,95 +1,49 @@
 # Docker 常用命令与配置速查
 
-这份文档用于保存 Docker 相关的高频命令，以及适合直接复制粘贴的配置片段。
-
-## Docker 一键安装
-
-如果你希望直接使用仓库里的安装脚本：
+## 安装与使用
 
 ```bash
-sudo ./scripts/docker/install_docker.sh
+bash setup.sh --only docker
+docker info
+docker ps -a
+docker images
+docker compose version
+docker buildx version
 ```
 
-## Docker daemon 镜像加速 / 提高稳定性
-
-在国内网络环境下，这一项非常重要。否则 `docker pull` 可能很慢，甚至直接失败。
-
-### 1. 创建或编辑 `daemon.json`
+有 `compose.yaml` 的项目目录中：
 
 ```bash
-sudo mkdir -p /etc/docker
-sudo nano /etc/docker/daemon.json
+docker compose up -d --build
+docker compose logs -f
+docker compose exec <service_name> /bin/bash
+docker compose down
 ```
 
-写入推荐配置：
-
-```json
-{
-  "registry-mirrors": [
-    "https://docker.xuanyuan.me"
-  ],
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "100m",
-    "max-file": "3"
-  },
-  "exec-opts": ["native.cgroupdriver=systemd"]
-}
-```
-
-配置说明：
-
-| 配置项 | 作用 |
-| --- | --- |
-| `registry-mirrors` | Docker Hub 镜像加速 |
-| `log-driver` | 日志驱动 |
-| `max-size` | 单个日志文件大小 |
-| `max-file` | 日志文件数量 |
-| `exec-opts` | 使用 `systemd` cgroup driver，Kubernetes / ROS / 仿真环境更稳定 |
-
-### 2. 重启 Docker
+## 合并 daemon 配置
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl restart docker
+bash scripts/docker/configure_daemon.sh --dry-run
+bash scripts/docker/configure_daemon.sh
 ```
 
-### 3. 验证配置是否生效
+只有自行确定可信镜像地址后才提供 `--mirror`。下面的地址是占位示例，使用前请替换：
+
+```bash
+bash scripts/docker/configure_daemon.sh --mirror https://your-registry.example --dry-run
+bash scripts/docker/configure_daemon.sh --mirror https://your-registry.example
+```
+
+支持重复 `--mirror` 添加多个地址。已有配置（包括 NVIDIA runtime）保留，相同地址不重复加入。
+
+日志驱动没有配置时使用 `json-file`，默认补充缺少的 `max-size: 100m`、`max-file: 3`；其他日志驱动及已有轮转值保留。修改前备份，验证通过后写入，重启失败恢复配置；相同内容不会重启服务。
+
+查看效果或排查启动失败：
 
 ```bash
 docker info
+systemctl status docker
+journalctl -u docker -n 80 --no-pager
 ```
 
-### 一次性写入版本
-
-如果你希望直接复制一整段命令，可以使用下面这版：
-
-```bash
-sudo mkdir -p /etc/docker
-
-sudo tee /etc/docker/daemon.json <<'EOF'
-{
-  "registry-mirrors": [
-    "https://docker.xuanyuan.me"
-  ],
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "100m",
-    "max-file": "3"
-  },
-  "exec-opts": ["native.cgroupdriver=systemd"]
-}
-EOF
-
-sudo systemctl daemon-reload
-sudo systemctl restart docker
-docker info
-```
-
-### 一键脚本版本
-
-如果你希望直接执行仓库里的脚本：
-
-```bash
-sudo ./scripts/docker/configure_daemon.sh
-```
+详细行为见 [Docker 安装说明](../install_docker.md)。

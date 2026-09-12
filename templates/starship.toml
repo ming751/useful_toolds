@@ -1,0 +1,30 @@
+# Compact Starship prompt. No leading blank line or separate input line.
+add_newline = false
+format = '$directory$git_branch$git_status$cmd_duration$character'
+
+[directory]
+style = 'bold cyan'
+truncation_length = 2
+truncate_to_repo = false
+truncation_symbol = '…/'
+home_symbol = '~'
+read_only = ' ro'
+
+[git_branch]
+format = '[$branch]($style) '
+style = 'bold purple'
+truncation_length = 24
+truncation_symbol = '…'
+
+[git_status]
+style = 'bold yellow'
+
+[cmd_duration]
+min_time = 2000
+format = '[took $duration]($style) '
+style = 'yellow'
+
+[character]
+success_symbol = '[❯](bold green)'
+error_symbol = '[❯](bold red)'
+vimcmd_symbol = '[❮](bold green)'

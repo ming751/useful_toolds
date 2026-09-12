@@ -1,365 +1,59 @@
-# Docker 安装与验证指南（Ubuntu）
+# Docker 安装说明
 
-本文记录如何在 Ubuntu 上从 0 开始安装 Docker Engine、Docker Compose v2，并完成基础验证。
-
-如果你想直接一键安装，可以优先运行：
+适用 Ubuntu 24.04 x86_64 桌面版。使用统一安装器：
 
 ```bash
-sudo ./scripts/docker/install_docker.sh
+bash setup.sh --only docker
+# 旧入口也可用
+bash scripts/docker/install_docker.sh
 ```
 
-> 适用场景：
-> - Ubuntu 本机
-> - WSL Ubuntu
-> - 远程 Ubuntu 服务器
+## 安装与跳过
 
----
+- 新装：使用 [Docker 官方 Ubuntu APT 源](https://docs.docker.com/engine/install/ubuntu/)，安装 Docker CE、CLI、containerd.io、Compose 和 Buildx。
+- 已有 Docker CE：跳过已有包，补缺少的组件。
+- 已有 Ubuntu 的 `docker.io`：继续使用 Ubuntu 软件包来源，缺少插件时安装 `docker-compose-v2`、`docker-buildx`。
+- Compose/Buildx 已通过用户插件安装且可执行时保留。
+- 检测到其他方式的 Docker 安装时保留，并检查其组件是否可用，不自动迁移来源。
+- 新装 Docker CE 遇到冲突包时报告错误，不自动卸载已有容器组件。
 
-## 1. 卸载旧版本（可选但推荐）
+安装器将目标用户加入 `docker` 组，按需启用和启动服务，检查本机 Docker Engine、Compose、Buildx。已运行的 Docker 不因重跑安装器而重启。
 
-如果系统里装过旧版 Docker，先卸载，避免包冲突：
+`docker` 组允许控制主机 Docker，权限很高；这里用于个人开发机。新添加的组权限在重新登录后生效。
+
+## 配置 daemon
+
+主安装器不自动改写 `daemon.json`。需要日志轮转等配置时单独执行：
 
 ```bash
-sudo apt-get remove docker docker-engine docker.io containerd runc
+# 先看合并后的配置
+bash scripts/docker/configure_daemon.sh --dry-run
+# 配置缺失的默认项
+bash scripts/docker/configure_daemon.sh
 ```
 
----
+脚本保留原有字段、NVIDIA runtime、镜像地址及自定义日志设置。缺少日志驱动时使用 `json-file`，该驱动缺少轮转设置时补充 `100m × 3`。没有 `exec-opts` 时补充 systemd cgroup driver；已有设置保留。
 
-## 2. 安装基础依赖
+镜像地址仅在显式传入 `--mirror` 时添加，不内置第三方地址，不替换已有列表。详见 [配置速查](cheatsheets/docker.md)。
 
-```bash
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl gnupg
-```
+合并结果由 `dockerd --validate` 检查后才写入。内容不变时不重启；重启失败时恢复原配置并尝试重新启动，错误和备份位置会显示在日志中。
 
----
+## 安装后查看
 
-## 3. 添加 Docker 官方 GPG 密钥
+重新登录后：
 
 ```bash
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-```
-
----
-
-## 4. 添加 Docker 官方 APT 软件源
-
-```bash
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-```
-
-更新软件包索引：
-
-```bash
-sudo apt-get update
-```
-
----
-
-## 5. 安装 Docker Engine 与 Compose 插件
-
-```bash
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-```
-
-说明：
-
-- `docker-ce`：Docker Engine
-- `docker-ce-cli`：Docker 命令行
-- `containerd.io`：容器运行时
-- `docker-buildx-plugin`：Buildx 插件
-- `docker-compose-plugin`：Docker Compose v2 插件
-
----
-
-## 6. 启动 Docker 并设置开机自启
-
-```bash
-sudo systemctl enable docker
-sudo systemctl start docker
-```
-
-检查服务状态：
-
-```bash
-sudo systemctl status docker
-```
-
-如果看到 `active (running)`，说明 Docker 服务已正常启动。
-
----
-
-## 7. 将当前用户加入 docker 组（避免每次都 sudo）
-
-先创建 `docker` 组（如果已存在也没关系）：
-
-```bash
-sudo groupadd docker
-```
-
-将当前用户加入 `docker` 组：
-
-```bash
-sudo usermod -aG docker $USER
-```
-
-然后 **重新登录终端**，或者执行：
-
-```bash
-newgrp docker
-```
-
-> 注意：`docker` 组等价于较高主机权限，不要随便给不可信用户加入该组。
-
----
-
-## 7.1 推荐：配置 Docker daemon 镜像加速
-
-在国内网络环境下，建议安装完成后立刻配置镜像加速，否则 `docker pull` 往往会很慢，甚至失败。
-
-如果你想看详细说明和完整复制版命令，请直接查看：
-
-- [`docs/cheatsheets/docker.md`](cheatsheets/docker.md)
-
-如果你想一键完成配置，可以直接运行：
-
-```bash
-sudo ./scripts/docker/configure_daemon.sh
-```
-
-核心配置文件位置：
-
-```bash
-/etc/docker/daemon.json
-```
-
----
-
-## 8. 验证安装是否成功
-
-### 8.1 查看 Docker 版本
-
-```bash
-docker --version
-```
-
-### 8.2 查看 Compose 版本
-
-```bash
+docker info
 docker compose version
+docker buildx version
 ```
 
-> 现在推荐使用：
->
-> ```bash
-> docker compose
-> ```
->
-> 而不是旧版：
->
-> ```bash
-> docker-compose
-> ```
-
-### 8.3 运行官方测试容器
-
-```bash
-docker run hello-world
-```
-
-如果输出包含类似 `Hello from Docker!` 的信息，说明 Docker Engine 工作正常。
-
-### 8.4 查看容器列表
-
-```bash
-docker ps
-docker ps -a
-```
-
----
-
-## 9. 基础使用测试
-
-### 9.1 拉取镜像
-
-```bash
-docker pull nginx
-```
-
-### 9.2 启动一个测试容器
-
-```bash
-docker run -d --name test-nginx -p 8080:80 nginx
-```
-
-查看运行状态：
-
-```bash
-docker ps
-```
-
-浏览器访问：
-
-```text
-http://localhost:8080
-```
-
-如果是在远程服务器上，请将 `localhost` 换成服务器 IP。
-
-### 9.3 停止并删除测试容器
-
-```bash
-docker stop test-nginx
-docker rm test-nginx
-```
-
----
-
-## 10. 验证 Docker Compose
-
-先创建测试目录：
-
-```bash
-mkdir -p ~/docker-compose-test
-cd ~/docker-compose-test
-```
-
-创建 `compose.yaml`：
-
-```yaml
-services:
-  web:
-    image: nginx:latest
-    ports:
-      - "8081:80"
-```
-
-启动：
-
-```bash
-docker compose up -d
-```
-
-查看服务：
-
-```bash
-docker compose ps
-```
-
-访问：
-
-```text
-http://localhost:8081
-```
-
-停止并清理：
-
-```bash
-docker compose down
-```
-
----
-
-## 11. 常见问题
-
-### 11.1 `docker: permission denied while trying to connect to the Docker daemon socket`
-
-通常是当前用户还没加入 `docker` 组，或者组权限还没生效。
-
-处理方法：
-
-```bash
-sudo usermod -aG docker $USER
-newgrp docker
-```
-
-重新验证：
-
-```bash
-docker ps
-```
-
----
-
-### 11.2 `E: Unable to locate package docker-compose-plugin`
-
-原因通常是还没有添加 Docker 官方 APT 仓库，而是在 Ubuntu 默认源里直接安装。  
-解决方法就是重新执行本文第 3～5 步。
-
----
-
-### 11.3 `docker-compose` 命令不存在
-
-这是正常情况。新版本 Compose 默认使用：
-
-```bash
-docker compose
-```
-
-不是：
-
-```bash
-docker-compose
-```
-
-如果某些旧脚本硬编码了 `docker-compose`，那是脚本太旧，不是当前安装有问题。
-
----
-
-## 12. 常用命令备忘
-
-### Docker
-
-```bash
-docker --version
-docker ps
-docker ps -a
-docker images
-docker pull nginx
-docker run hello-world
-docker logs <container_name_or_id>
-docker stop <container_name_or_id>
-docker rm <container_name_or_id>
-docker rmi <image_name_or_id>
-```
-
-### Docker Compose
-
-```bash
-docker compose version
-docker compose up -d
-docker compose down
-docker compose ps
-docker compose logs
-docker compose logs -f
-docker compose build
-```
-
----
-
-## 13. 本文安装结果的最小验证标准
-
-如果下面命令都成功，则说明安装完成：
-
-```bash
-docker --version
-docker compose version
-docker run hello-world
-docker ps
-```
-
----
-
-## 14. 参考说明
-
-本文步骤基于 Docker 官方文档整理，核心依据包括：
-
-- Ubuntu 上安装 Docker Engine：使用 Docker 官方 APT 仓库安装 Docker Engine
-- Linux 上安装 Docker Compose plugin：Compose v2 作为 Docker CLI 插件安装
-- Docker Linux post-install：将用户加入 `docker` 组以便非 root 使用
+这里不要求自动下载测试镜像。使用 Docker 拉取镜像失败时，先检查 Docker 服务自身的网络或代理设置：Shell 的代理环境变量不会自动配置到 Docker daemon。
+
+## 常见问题
+
+- **访问 socket 权限不足**：退出并重新登录，再用 `id -nG` 检查 `docker` 组。
+- **Compose 找不到**：使用 `docker compose`；保留安装来源，重跑 `--only docker` 补齐插件。
+- **服务未启动**：查看 `systemctl status docker` 和 `journalctl -u docker`；脚本不会把启动失败报告为成功。
+- **软件源刷新失败**：修复网络或损坏的软件源后重试；脚本不自动关闭签名检查。
+- **非 APT Docker 缺少组件**：先按该安装方式补齐组件，或自行决定迁移；脚本不会同时装另一套 Engine。

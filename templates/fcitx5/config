@@ -1,0 +1,12 @@
+[Hotkey/TriggerKeys]
+0=Control+space
+
+[Hotkey/AltTriggerKeys]
+0=Shift_L
+1=Shift_R
+
+[Behavior]
+ActiveByDefault=False
+ShareInputState=Program
+DefaultPageSize=7
+AllowInputMethodForPassword=False
